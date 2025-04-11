@@ -156,7 +156,7 @@ const unsigned char GifAsciiTable8x8[][GIF_FONT_WIDTH] = {
 void GifDrawText8x8(SavedImage *Image, const int x, const int y,
                     const char *legend, const int color) {
 	int i, j;
-	const char *cp;
+	const char *__null_terminated cp;
 
 	for (i = 0; i < GIF_FONT_HEIGHT; i++) {
 		int base = Image->ImageDesc.Width * (y + i) + x;
@@ -192,7 +192,9 @@ void GifDrawBox(SavedImage *Image, const int x, const int y, const int w,
 
 void GifDrawRectangle(SavedImage *Image, const int x, const int y, const int w,
                       const int d, const int color) {
-	unsigned char *bp = Image->RasterBits + Image->ImageDesc.Width * y + x;
+	unsigned char *bp = __unsafe_forge_bidi_indexable(unsigned char *,
+                                                    Image->RasterBits + Image->ImageDesc.Width * y + x,
+                                                    d * Image->ImageDesc.Width);
 	int i;
 
 	for (i = 0; i < d; i++) {
@@ -204,7 +206,7 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
                          const char *legend, const int border, const int bg,
                          const int fg) {
 	int j = 0, LineCount = 0, TextWidth = 0;
-	const char *cp;
+	const char *__null_terminated cp;
 	char *dup;
 
 	/* compute size of text to box */
@@ -235,8 +237,7 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
 		    border + TextWidth * GIF_FONT_WIDTH + border - 1,
 		    border + LineCount * GIF_FONT_HEIGHT + border - 1, bg);
 		(void)strcpy(dup, (char *)legend);
-		char *lasts;
-		cp = strtok_r(dup, "\r\n", &lasts);
+		cp = __unsafe_forge_null_terminated(const char *, strtok(dup, "\r\n"));
 		do {
 			int leadspace = 0;
 
@@ -247,7 +248,7 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
 			GifDrawText8x8(
 			    Image, x + border + (leadspace * GIF_FONT_WIDTH),
 			    y + border + (GIF_FONT_HEIGHT * i++), cp, fg);
-			cp = strtok_r(NULL, "\r\n", &lasts);
+			cp = __unsafe_forge_null_terminated(const char *, strtok(NULL, "\r\n"));
 		} while (cp);
 		(void)free((void *)dup);
 

@@ -63,7 +63,7 @@ typedef struct GifFilePrivateType {
 } GifFilePrivateType;
 
 #ifndef HAVE_REALLOCARRAY
-extern void *openbsd_reallocarray(void *optr, size_t nmemb, size_t size);
+extern void *__sized_by_or_null(nmemb * size) openbsd_reallocarray(void *optr, size_t nmemb, size_t size);
 #define reallocarray openbsd_reallocarray
 #endif
 

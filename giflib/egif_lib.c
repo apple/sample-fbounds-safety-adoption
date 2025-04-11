@@ -35,10 +35,10 @@ static const GifPixelType CodeMask[] = {0x00, 0x01, 0x03, 0x07, 0x0f,
 
 static int EGifPutWord(int Word, GifFileType *GifFile);
 static int EGifSetupCompress(GifFileType *GifFile);
-static int EGifCompressLine(GifFileType *GifFile, const GifPixelType *Line,
+static int EGifCompressLine(GifFileType *GifFile, const GifPixelType *__counted_by(LineLen) Line,
                             const int LineLen);
 static int EGifCompressOutput(GifFileType *GifFile, int Code);
-static int EGifBufferedOutput(GifFileType *GifFile, GifByteType *Buf, int c);
+static int EGifBufferedOutput(GifFileType *GifFile, GifByteType *__bidi_indexable Buf, int c);
 
 /* extract bytes from an unsigned word */
 #define LOBYTE(x) ((x)&0xff)
@@ -125,7 +125,7 @@ GifFileType *EGifOpenFileHandle(const int FileHandle, int *Error) {
 	_setmode(FileHandle, O_BINARY); /* Make sure it is in binary mode. */
 #endif                                  /* _WIN32 */
 
-	f = fdopen(FileHandle, "wb"); /* Make it into a stream: */
+	f = __unsafe_forge_single(FILE *, fdopen(FileHandle, "wb")); /* Make it into a stream: */
 
 	GifFile->Private = (void *)Private;
 	Private->FileHandle = FileHandle;
@@ -275,7 +275,7 @@ int EGifPutScreenDesc(GifFileType *GifFile, const int Width, const int Height,
                       const ColorMapObject *ColorMap) {
 	GifByteType Buf[3];
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
-	const char *write_version;
+	const char *__null_terminated write_version;
 	GifFile->SColorMap = NULL;
 
 	if (Private->FileState & FILE_STATE_SCREEN) {
@@ -447,7 +447,7 @@ int EGifPutImageDesc(GifFileType *GifFile, const int Left, const int Top,
 /******************************************************************************
  Put one full scanned line (Line) of length LineLen into GIF file.
 ******************************************************************************/
-int EGifPutLine(GifFileType *GifFile, GifPixelType *Line, int LineLen) {
+int EGifPutLine(GifFileType *GifFile, GifPixelType *__counted_by(LineLen) Line, int LineLen) {
 	int i;
 	GifPixelType Mask;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
@@ -459,7 +459,9 @@ int EGifPutLine(GifFileType *GifFile, GifPixelType *Line, int LineLen) {
 	}
 
 	if (!LineLen) {
+		// FIXME: Is Line NULL here?
 		LineLen = GifFile->Image.Width;
+		Line = Line;
 	}
 	if (Private->PixelCount < (unsigned)LineLen) {
 		GifFile->Error = E_GIF_ERR_DATA_TOO_BIG;
@@ -512,11 +514,11 @@ int EGifPutComment(GifFileType *GifFile, const char *Comment) {
 	char *buf;
 
 	length = strlen(Comment);
+	buf = (char *)__null_terminated_to_indexable(Comment);
 	if (length <= 255) {
 		return EGifPutExtension(GifFile, COMMENT_EXT_FUNC_CODE, length,
-		                        Comment);
+		                        buf);
 	} else {
-		buf = (char *)Comment;
 		if (EGifPutExtensionLeader(GifFile, COMMENT_EXT_FUNC_CODE) ==
 		    GIF_ERROR) {
 			return GIF_ERROR;
@@ -571,7 +573,7 @@ int EGifPutExtensionLeader(GifFileType *GifFile, const int ExtCode) {
  Put extension block data (see GIF manual) into a GIF file.
 ******************************************************************************/
 int EGifPutExtensionBlock(GifFileType *GifFile, const int ExtLen,
-                          const void *Extension) {
+                          const void *__sized_by(ExtLen) Extension) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
@@ -628,7 +630,8 @@ int EGifPutExtension(GifFileType *GifFile, const int ExtCode, const int ExtLen,
 	}
 
 	if (ExtCode == 0) {
-		InternalWrite(GifFile, (GifByteType *)&ExtLen, 1);
+		GifByteType ExtLenCopy = ExtLen;
+		InternalWrite(GifFile, (GifByteType *)&ExtLenCopy, 1);
 	} else {
 		Buf[0] = EXTENSION_INTRODUCER;
 		Buf[1] = ExtCode; /* Extension Label */
@@ -647,7 +650,7 @@ int EGifPutExtension(GifFileType *GifFile, const int ExtCode, const int ExtLen,
 ******************************************************************************/
 
 size_t EGifGCBToExtension(const GraphicsControlBlock *GCB,
-                          GifByteType *GifExtension) {
+                          GifByteType *__counted_by(4) GifExtension) {
 	GifExtension[0] = 0;
 	GifExtension[0] |=
 	    (GCB->TransparentColor == NO_TRANSPARENT_COLOR) ? 0x00 : 0x01;
@@ -873,7 +876,7 @@ static int EGifSetupCompress(GifFileType *GifFile) {
  This routine can be called a few times (one per scan line, for example), in
  order to complete the whole image.
 ******************************************************************************/
-static int EGifCompressLine(GifFileType *GifFile, const GifPixelType *Line,
+static int EGifCompressLine(GifFileType *GifFile, const GifPixelType *__counted_by(LineLen) Line,
                             const int LineLen) {
 	int i = 0, CrntCode;
 	GifHashTableType *HashTable;
@@ -1017,7 +1020,7 @@ static int EGifCompressOutput(GifFileType *GifFile, const int Code) {
  The buffer is Dumped with first byte as its size, as GIF format requires.
  Returns GIF_OK if written successfully.
 ******************************************************************************/
-static int EGifBufferedOutput(GifFileType *GifFile, GifByteType *Buf, int c) {
+static int EGifBufferedOutput(GifFileType *GifFile, GifByteType *__bidi_indexable Buf, int c) {
 	if (c == FLUSH_OUTPUT) {
 		/* Flush everything out. */
 		if (Buf[0] != 0 && InternalWrite(GifFile, Buf, Buf[0] + 1) !=
@@ -1054,7 +1057,7 @@ static int EGifBufferedOutput(GifFileType *GifFile, GifByteType *Buf, int c) {
 ******************************************************************************/
 
 static int EGifWriteExtensions(GifFileType *GifFileOut,
-                               ExtensionBlock *ExtensionBlocks,
+                               ExtensionBlock *__counted_by(ExtensionBlockCount) ExtensionBlocks,
                                int ExtensionBlockCount) {
 	if (ExtensionBlocks) {
 		int j;
@@ -1129,9 +1132,11 @@ int EGifSpew(GifFileType *GifFileOut) {
 			for (k = 0; k < 4; k++) {
 				for (j = InterlacedOffset[k]; j < SavedHeight;
 				     j += InterlacedJumps[k]) {
+					GifByteType *RasterBits = __unsafe_forge_bidi_indexable(GifByteType *,
+												sp->RasterBits + j * SavedWidth, SavedWidth);
 					if (EGifPutLine(
 					        GifFileOut,
-					        sp->RasterBits + j * SavedWidth,
+						RasterBits,
 					        SavedWidth) == GIF_ERROR) {
 						return (GIF_ERROR);
 					}
@@ -1139,8 +1144,10 @@ int EGifSpew(GifFileType *GifFileOut) {
 			}
 		} else {
 			for (j = 0; j < SavedHeight; j++) {
+				GifByteType *RasterBits = __unsafe_forge_bidi_indexable(GifByteType *,
+											sp->RasterBits + j * SavedWidth, SavedWidth);
 				if (EGifPutLine(GifFileOut,
-				                sp->RasterBits + j * SavedWidth,
+				                RasterBits,
 				                SavedWidth) == GIF_ERROR) {
 					return (GIF_ERROR);
 				}

@@ -23,6 +23,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 
+#include <ptrcheck.h>
+
 #define GIF_STAMP "GIFVER" /* First chars in file - GIF stamp.  */
 #define GIF_STAMP_LEN sizeof(GIF_STAMP) - 1
 #define GIF_VERSION_POS 3    /* Version first character in stamp. */
@@ -43,7 +45,7 @@ typedef struct ColorMapObject {
 	int ColorCount;
 	int BitsPerPixel;
 	bool SortFlag;
-	GifColorType *Colors; /* on malloc(3) heap */
+	GifColorType *__counted_by(ColorCount) Colors; /* on malloc(3) heap */
 } ColorMapObject;
 
 typedef struct GifImageDesc {
@@ -54,7 +56,7 @@ typedef struct GifImageDesc {
 
 typedef struct ExtensionBlock {
 	int ByteCount;
-	GifByteType *Bytes;            /* on malloc(3) heap */
+	GifByteType *__counted_by(ByteCount) Bytes;            /* on malloc(3) heap */
 	int Function;                  /* The block function code */
 #define CONTINUE_EXT_FUNC_CODE 0x00    /* continuation subblock */
 #define COMMENT_EXT_FUNC_CODE 0xfe     /* comment */
@@ -65,9 +67,9 @@ typedef struct ExtensionBlock {
 
 typedef struct SavedImage {
 	GifImageDesc ImageDesc;
-	GifByteType *RasterBits;         /* on malloc(3) heap */
+	GifByteType *__unsafe_indexable RasterBits;         /* on malloc(3) heap */
 	int ExtensionBlockCount;         /* Count of extensions before image */
-	ExtensionBlock *ExtensionBlocks; /* Extensions before image */
+	ExtensionBlock *__counted_by(ExtensionBlockCount) ExtensionBlocks; /* Extensions before image */
 } SavedImage;
 
 typedef struct GifFileType {
@@ -78,9 +80,9 @@ typedef struct GifFileType {
 	ColorMapObject *SColorMap; /* Global colormap, NULL if nonexistent. */
 	int ImageCount;            /* Number of current image (both APIs) */
 	GifImageDesc Image;        /* Current image (low-level API) */
-	SavedImage *SavedImages;   /* Image sequence (high-level API) */
+	SavedImage *__counted_by(ImageCount) SavedImages;   /* Image sequence (high-level API) */
 	int ExtensionBlockCount;   /* Count extensions past last image */
-	ExtensionBlock *ExtensionBlocks; /* Extensions past last image */
+	ExtensionBlock *__counted_by(ExtensionBlockCount) ExtensionBlocks; /* Extensions past last image */
 	int Error;                       /* Last error condition reported */
 	void *UserData;                  /* hook to attach user data (TVT) */
 	void *Private;                   /* Don't mess with this! */
@@ -155,12 +157,12 @@ int EGifPutImageDesc(GifFileType *GifFile, const int GifLeft, const int GifTop,
                      const bool GifInterlace,
                      const ColorMapObject *GifColorMap);
 void EGifSetGifVersion(GifFileType *GifFile, const bool gif89);
-int EGifPutLine(GifFileType *GifFile, GifPixelType *GifLine, int GifLineLen);
+int EGifPutLine(GifFileType *GifFile, GifPixelType *__counted_by(GifLineLen) GifLine, int GifLineLen);
 int EGifPutPixel(GifFileType *GifFile, const GifPixelType GifPixel);
 int EGifPutComment(GifFileType *GifFile, const char *GifComment);
 int EGifPutExtensionLeader(GifFileType *GifFile, const int GifExtCode);
 int EGifPutExtensionBlock(GifFileType *GifFile, const int GifExtLen,
-                          const void *GifExtension);
+			  const void *__sized_by(GifExtLen) GifExtension);
 int EGifPutExtensionTrailer(GifFileType *GifFile);
 int EGifPutExtension(GifFileType *GifFile, const int GifExtCode,
                      const int GifExtLen, const void *GifExtension);
@@ -200,14 +202,14 @@ int DGifGetScreenDesc(GifFileType *GifFile);
 int DGifGetRecordType(GifFileType *GifFile, GifRecordType *GifType);
 int DGifGetImageHeader(GifFileType *GifFile);
 int DGifGetImageDesc(GifFileType *GifFile);
-int DGifGetLine(GifFileType *GifFile, GifPixelType *GifLine, int GifLineLen);
+int DGifGetLine(GifFileType *GifFile, GifPixelType *__counted_by(GifLineLen) GifLine, int GifLineLen);
 int DGifGetPixel(GifFileType *GifFile, GifPixelType GifPixel);
 int DGifGetExtension(GifFileType *GifFile, int *GifExtCode,
-                     GifByteType **GifExtension);
-int DGifGetExtensionNext(GifFileType *GifFile, GifByteType **GifExtension);
+                     GifByteType *__unsafe_indexable *GifExtension);
+int DGifGetExtensionNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *GifExtension);
 int DGifGetCode(GifFileType *GifFile, int *GifCodeSize,
-                GifByteType **GifCodeBlock);
-int DGifGetCodeNext(GifFileType *GifFile, GifByteType **GifCodeBlock);
+                GifByteType *__unsafe_indexable *GifCodeBlock);
+int DGifGetCodeNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *GifCodeBlock);
 int DGifGetLZCodes(GifFileType *GifFile, int *GifCode);
 const char *DGifGetGifVersion(GifFileType *GifFile);
 
@@ -226,11 +228,15 @@ extern const char *GifErrorString(int ErrorCode); /* new in 2012 - ESR */
 ******************************************************************************/
 
 extern ColorMapObject *GifMakeMapObject(int ColorCount,
-                                        const GifColorType *ColorMap);
+                                        const GifColorType *__counted_by_or_null(ColorCount) ColorMap);
 extern void GifFreeMapObject(ColorMapObject *Object);
 extern ColorMapObject *GifUnionColorMap(const ColorMapObject *ColorIn1,
                                         const ColorMapObject *ColorIn2,
-                                        GifPixelType ColorTransIn2[]);
+                                        GifPixelType *__unsafe_indexable ColorTransIn2);
+extern ColorMapObject *GifUnionColorMapSafe(const ColorMapObject *ColorIn1,
+					    const ColorMapObject *ColorIn2,
+					    GifPixelType *__counted_by(ColorTransIn2Len) ColorTransIn2,
+					    int ColorTransIn2Len);
 extern int GifBitSize(int n);
 
 /******************************************************************************
@@ -238,12 +244,12 @@ extern int GifBitSize(int n);
 ******************************************************************************/
 
 extern void GifApplyTranslation(SavedImage *Image,
-                                const GifPixelType Translation[]);
+                                const GifPixelType *__counted_by(256) Translation);
 extern int GifAddExtensionBlock(int *ExtensionBlock_Count,
-                                ExtensionBlock **ExtensionBlocks, int Function,
-                                unsigned int Len, unsigned char ExtData[]);
+                                ExtensionBlock *__counted_by(*ExtensionBlock_Count) *ExtensionBlocks, int Function,
+                                unsigned int Len, unsigned char *__counted_by(Len) ExtData);
 extern void GifFreeExtensions(int *ExtensionBlock_Count,
-                              ExtensionBlock **ExtensionBlocks);
+                              ExtensionBlock *__counted_by(*ExtensionBlock_Count) *ExtensionBlocks);
 extern SavedImage *GifMakeSavedImage(GifFileType *GifFile,
                                      const SavedImage *CopyFrom);
 extern void GifFreeSavedImages(GifFileType *GifFile);
@@ -253,10 +259,10 @@ extern void GifFreeSavedImages(GifFileType *GifFile);
 ******************************************************************************/
 
 int DGifExtensionToGCB(const size_t GifExtensionLength,
-                       const GifByteType *GifExtension,
+                       const GifByteType *__counted_by(GifExtensionLength) GifExtension,
                        GraphicsControlBlock *GCB);
 size_t EGifGCBToExtension(const GraphicsControlBlock *GCB,
-                          GifByteType *GifExtension);
+                          GifByteType *__counted_by(4) GifExtension);
 
 int DGifSavedExtensionToGCB(GifFileType *GifFile, int ImageIndex,
                             GraphicsControlBlock *GCB);

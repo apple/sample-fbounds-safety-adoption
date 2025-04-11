@@ -15,7 +15,7 @@ SPDX-License-Identifier: MIT
  Return a string description of  the last GIF error
 *****************************************************************************/
 const char *GifErrorString(int ErrorCode) {
-	const char *Err;
+	const char *__null_terminated Err;
 
 	switch (ErrorCode) {
 	case E_GIF_ERR_OPEN_FAILED:
