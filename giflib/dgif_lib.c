@@ -113,7 +113,7 @@ GifFileType *DGifOpenFileHandle(int FileHandle, int *Error) {
 	_setmode(FileHandle, O_BINARY); /* Make sure it is in binary mode. */
 #endif                                  /* _WIN32 */
 
-	f = __unsafe_forge_single(FILE *, fdopen(FileHandle, "rb")); /* Make it into a stream: */
+	f = fdopen(FileHandle, "rb"); /* Make it into a stream: */
 
 	/*@-mustfreeonly@*/
 	GifFile->Private = (void *)Private;

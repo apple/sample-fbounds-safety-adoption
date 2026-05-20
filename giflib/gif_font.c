@@ -227,7 +227,8 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
 	}
 
 	/* draw the text */
-	dup = malloc(strlen(legend) + 1);
+	const size_t legend_len = strlen(legend);
+	dup = malloc(legend_len + 1);
 	/* FIXME: should return bad status, but that would require API change */
 	if (dup != NULL) {
 		int i = 0;
@@ -236,8 +237,9 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
 		    Image, x + 1, y + 1,
 		    border + TextWidth * GIF_FONT_WIDTH + border - 1,
 		    border + LineCount * GIF_FONT_HEIGHT + border - 1, bg);
-		(void)strcpy(dup, (char *)legend);
-		cp = __unsafe_forge_null_terminated(const char *, strtok(dup, "\r\n"));
+		(void)strlcpy(dup, (char *)legend, legend_len+1);
+        char* __null_terminated dup_nt = __unsafe_null_terminated_from_indexable(dup, &dup[legend_len]);
+		cp = strtok(dup_nt, "\r\n");
 		do {
 			int leadspace = 0;
 
@@ -248,7 +250,7 @@ void GifDrawBoxedText8x8(SavedImage *Image, const int x, const int y,
 			GifDrawText8x8(
 			    Image, x + border + (leadspace * GIF_FONT_WIDTH),
 			    y + border + (GIF_FONT_HEIGHT * i++), cp, fg);
-			cp = __unsafe_forge_null_terminated(const char *, strtok(NULL, "\r\n"));
+			cp = strtok(NULL, "\r\n");
 		} while (cp);
 		(void)free((void *)dup);
 

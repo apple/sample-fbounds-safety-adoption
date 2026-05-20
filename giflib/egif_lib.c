@@ -125,7 +125,7 @@ GifFileType *EGifOpenFileHandle(const int FileHandle, int *Error) {
 	_setmode(FileHandle, O_BINARY); /* Make sure it is in binary mode. */
 #endif                                  /* _WIN32 */
 
-	f = __unsafe_forge_single(FILE *, fdopen(FileHandle, "wb")); /* Make it into a stream: */
+	f = fdopen(FileHandle, "wb"); /* Make it into a stream: */
 
 	GifFile->Private = (void *)Private;
 	Private->FileHandle = FileHandle;
@@ -256,7 +256,7 @@ void EGifSetGifVersion(GifFileType *GifFile, const bool gif89) {
 /******************************************************************************
  All writes to the GIF should go through this.
 ******************************************************************************/
-static int InternalWrite(GifFileType *GifFileOut, const unsigned char *buf,
+static int InternalWrite(GifFileType *GifFileOut, const unsigned char *__counted_by(len) buf,
                          size_t len) {
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFileOut->Private;
 	if (Private->Write) {
@@ -292,7 +292,7 @@ int EGifPutScreenDesc(GifFileType *GifFile, const int Width, const int Height,
 	write_version = EGifGetGifVersion(GifFile);
 
 	/* First write the version prefix into the file. */
-	if (InternalWrite(GifFile, (unsigned char *)write_version,
+	if (InternalWrite(GifFile, __null_terminated_to_indexable((unsigned char*__null_terminated)write_version),
 	                  strlen(write_version)) != strlen(write_version)) {
 		GifFile->Error = E_GIF_ERR_WRITE_FAILED;
 		return GIF_ERROR;
@@ -618,7 +618,7 @@ int EGifPutExtensionTrailer(GifFileType *GifFile) {
  EGifPutExtension{Leader,Block,Trailer} functions instead.
 ******************************************************************************/
 int EGifPutExtension(GifFileType *GifFile, const int ExtCode, const int ExtLen,
-                     const void *Extension) {
+                     const void *__sized_by(ExtLen) Extension) {
 
 	GifByteType Buf[3];
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
@@ -732,11 +732,15 @@ int EGifPutCode(GifFileType *GifFile, int CodeSize,
  called with blocks of code as read via DGifGetCode/DGifGetCodeNext. If
  given buffer pointer is NULL, empty block is written to mark end of code.
 ******************************************************************************/
-int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *CodeBlock) {
+// FIXME: Add a safe wrapper
+int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable _CodeBlock) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
-	if (CodeBlock != NULL) {
+	if (_CodeBlock != NULL) {
+		const GifByteType * CodeBlock = __unsafe_forge_bidi_indexable(const
+			GifByteType*, _CodeBlock, _CodeBlock[0]+1);
+
 		if (InternalWrite(GifFile, CodeBlock, CodeBlock[0] + 1) !=
 		    (unsigned)(CodeBlock[0] + 1)) {
 			GifFile->Error = E_GIF_ERR_WRITE_FAILED;

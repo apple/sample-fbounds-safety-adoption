@@ -165,10 +165,10 @@ int EGifPutExtensionBlock(GifFileType *GifFile, const int GifExtLen,
 			  const void *__sized_by(GifExtLen) GifExtension);
 int EGifPutExtensionTrailer(GifFileType *GifFile);
 int EGifPutExtension(GifFileType *GifFile, const int GifExtCode,
-                     const int GifExtLen, const void *GifExtension);
+                     const int GifExtLen, const void *__sized_by(GifExtLen) GifExtension);
 int EGifPutCode(GifFileType *GifFile, int GifCodeSize,
                 const GifByteType *GifCodeBlock);
-int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *GifCodeBlock);
+int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable GifCodeBlock);
 
 /******************************************************************************
  GIF decoding routines
