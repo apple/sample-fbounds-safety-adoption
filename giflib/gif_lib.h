@@ -165,10 +165,18 @@ int EGifPutExtensionBlock(GifFileType *GifFile, const int GifExtLen,
 			  const void *__sized_by(GifExtLen) GifExtension);
 int EGifPutExtensionTrailer(GifFileType *GifFile);
 int EGifPutExtension(GifFileType *GifFile, const int GifExtCode,
-                     const int GifExtLen, const void *GifExtension);
+                     const int GifExtLen, const void *__sized_by(GifExtLen) GifExtension);
+__ptrcheck_unavailable_r(EGifPutCodeSafe)
 int EGifPutCode(GifFileType *GifFile, int GifCodeSize,
-                const GifByteType *GifCodeBlock);
-int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *GifCodeBlock);
+                const GifByteType *__unsafe_indexable GifCodeBlock);
+int EGifPutCodeSafe(GifFileType *GifFile, int GifCodeSize,
+                    const GifByteType *__counted_by_or_null(GifCodeBlockLen) GifCodeBlock,
+                    size_t GifCodeBlockLen);
+__ptrcheck_unavailable_r(EGifPutCodeNextSafe)
+int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable GifCodeBlock);
+int EGifPutCodeNextSafe(GifFileType *GifFile,
+                        const GifByteType *__counted_by_or_null(GifCodeBlockLen) GifCodeBlock,
+                        size_t GifCodeBlockLen);
 
 /******************************************************************************
  GIF decoding routines
@@ -204,12 +212,28 @@ int DGifGetImageHeader(GifFileType *GifFile);
 int DGifGetImageDesc(GifFileType *GifFile);
 int DGifGetLine(GifFileType *GifFile, GifPixelType *__counted_by(GifLineLen) GifLine, int GifLineLen);
 int DGifGetPixel(GifFileType *GifFile, GifPixelType GifPixel);
+__ptrcheck_unavailable_r(DGifGetExtensionSafe)
 int DGifGetExtension(GifFileType *GifFile, int *GifExtCode,
                      GifByteType *__unsafe_indexable *GifExtension);
+int DGifGetExtensionSafe(GifFileType *GifFile, int *GifExtCode,
+                         GifByteType *__counted_by_or_null(*GifExtensionLen) *GifExtension,
+                         size_t *GifExtensionLen);
+__ptrcheck_unavailable_r(DGifGetExtensionNextSafe)
 int DGifGetExtensionNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *GifExtension);
+int DGifGetExtensionNextSafe(GifFileType *GifFile,
+                             GifByteType *__counted_by_or_null(*GifExtensionLen) *GifExtension,
+                             size_t *GifExtensionLen);
+__ptrcheck_unavailable_r(DGifGetCodeSafe)
 int DGifGetCode(GifFileType *GifFile, int *GifCodeSize,
                 GifByteType *__unsafe_indexable *GifCodeBlock);
+int DGifGetCodeSafe(GifFileType *GifFile, int *GifCodeSize,
+                    GifByteType *__counted_by_or_null(*GifCodeBlockLen) *GifCodeBlock,
+                    size_t *GifCodeBlockLen);
+__ptrcheck_unavailable_r(DGifGetCodeNextSafe)
 int DGifGetCodeNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *GifCodeBlock);
+int DGifGetCodeNextSafe(GifFileType *GifFile,
+                        GifByteType *__counted_by_or_null(*GifCodeBlockLen) *GifCodeBlock,
+                        size_t *GifCodeBlockLen);
 int DGifGetLZCodes(GifFileType *GifFile, int *GifCode);
 const char *DGifGetGifVersion(GifFileType *GifFile);
 
@@ -230,6 +254,7 @@ extern const char *GifErrorString(int ErrorCode); /* new in 2012 - ESR */
 extern ColorMapObject *GifMakeMapObject(int ColorCount,
                                         const GifColorType *__counted_by_or_null(ColorCount) ColorMap);
 extern void GifFreeMapObject(ColorMapObject *Object);
+__ptrcheck_unavailable_r(GifUnionColorMapSafe)
 extern ColorMapObject *GifUnionColorMap(const ColorMapObject *ColorIn1,
                                         const ColorMapObject *ColorIn2,
                                         GifPixelType *__unsafe_indexable ColorTransIn2);

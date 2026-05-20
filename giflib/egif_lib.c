@@ -125,7 +125,7 @@ GifFileType *EGifOpenFileHandle(const int FileHandle, int *Error) {
 	_setmode(FileHandle, O_BINARY); /* Make sure it is in binary mode. */
 #endif                                  /* _WIN32 */
 
-	f = __unsafe_forge_single(FILE *, fdopen(FileHandle, "wb")); /* Make it into a stream: */
+	f = fdopen(FileHandle, "wb"); /* Make it into a stream: */
 
 	GifFile->Private = (void *)Private;
 	Private->FileHandle = FileHandle;
@@ -256,7 +256,7 @@ void EGifSetGifVersion(GifFileType *GifFile, const bool gif89) {
 /******************************************************************************
  All writes to the GIF should go through this.
 ******************************************************************************/
-static int InternalWrite(GifFileType *GifFileOut, const unsigned char *buf,
+static int InternalWrite(GifFileType *GifFileOut, const unsigned char *__counted_by(len) buf,
                          size_t len) {
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFileOut->Private;
 	if (Private->Write) {
@@ -292,7 +292,7 @@ int EGifPutScreenDesc(GifFileType *GifFile, const int Width, const int Height,
 	write_version = EGifGetGifVersion(GifFile);
 
 	/* First write the version prefix into the file. */
-	if (InternalWrite(GifFile, (unsigned char *)write_version,
+	if (InternalWrite(GifFile, __null_terminated_to_indexable((unsigned char*__null_terminated)write_version),
 	                  strlen(write_version)) != strlen(write_version)) {
 		GifFile->Error = E_GIF_ERR_WRITE_FAILED;
 		return GIF_ERROR;
@@ -618,7 +618,7 @@ int EGifPutExtensionTrailer(GifFileType *GifFile) {
  EGifPutExtension{Leader,Block,Trailer} functions instead.
 ******************************************************************************/
 int EGifPutExtension(GifFileType *GifFile, const int ExtCode, const int ExtLen,
-                     const void *Extension) {
+                     const void *__sized_by(ExtLen) Extension) {
 
 	GifByteType Buf[3];
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
@@ -705,8 +705,9 @@ int EGifGCBToSavedExtension(const GraphicsControlBlock *GCB,
  to EGifPutCodeNext, until NULL block is given.
  The block should NOT be freed by the user (not dynamically allocated).
 ******************************************************************************/
-int EGifPutCode(GifFileType *GifFile, int CodeSize,
-                const GifByteType *CodeBlock) {
+int EGifPutCodeSafe(GifFileType *GifFile, int CodeSize,
+                    const GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlock,
+                    size_t CodeBlockLen) {
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_WRITEABLE(Private)) {
@@ -724,7 +725,18 @@ int EGifPutCode(GifFileType *GifFile, int CodeSize,
 	 * }
 	 */
 
-	return EGifPutCodeNext(GifFile, CodeBlock);
+	return EGifPutCodeNextSafe(GifFile, CodeBlock, CodeBlockLen);
+}
+
+int EGifPutCode(GifFileType *GifFile, int CodeSize,
+                const GifByteType *__unsafe_indexable CodeBlock) {
+	if (CodeBlock == NULL) {
+		return EGifPutCodeSafe(GifFile, CodeSize, NULL, 0);
+	}
+	size_t Len = (size_t)CodeBlock[0] + 1;
+	const GifByteType *Safe = __unsafe_forge_bidi_indexable(
+	    const GifByteType *, CodeBlock, Len);
+	return EGifPutCodeSafe(GifFile, CodeSize, Safe, Len);
 }
 
 /******************************************************************************
@@ -732,13 +744,15 @@ int EGifPutCode(GifFileType *GifFile, int CodeSize,
  called with blocks of code as read via DGifGetCode/DGifGetCodeNext. If
  given buffer pointer is NULL, empty block is written to mark end of code.
 ******************************************************************************/
-int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *CodeBlock) {
+int EGifPutCodeNextSafe(GifFileType *GifFile,
+                        const GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlock,
+                        size_t CodeBlockLen) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (CodeBlock != NULL) {
-		if (InternalWrite(GifFile, CodeBlock, CodeBlock[0] + 1) !=
-		    (unsigned)(CodeBlock[0] + 1)) {
+		if (InternalWrite(GifFile, CodeBlock, CodeBlockLen) !=
+		    CodeBlockLen) {
 			GifFile->Error = E_GIF_ERR_WRITE_FAILED;
 			return GIF_ERROR;
 		}
@@ -753,6 +767,16 @@ int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *CodeBlock) {
 	}
 
 	return GIF_OK;
+}
+
+int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable _CodeBlock) {
+	if (_CodeBlock == NULL) {
+		return EGifPutCodeNextSafe(GifFile, NULL, 0);
+	}
+	size_t Len = (size_t)_CodeBlock[0] + 1;
+	const GifByteType *Safe = __unsafe_forge_bidi_indexable(
+	    const GifByteType *, _CodeBlock, Len);
+	return EGifPutCodeNextSafe(GifFile, Safe, Len);
 }
 
 /******************************************************************************
