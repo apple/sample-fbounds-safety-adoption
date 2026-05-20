@@ -705,8 +705,9 @@ int EGifGCBToSavedExtension(const GraphicsControlBlock *GCB,
  to EGifPutCodeNext, until NULL block is given.
  The block should NOT be freed by the user (not dynamically allocated).
 ******************************************************************************/
-int EGifPutCode(GifFileType *GifFile, int CodeSize,
-                const GifByteType *CodeBlock) {
+int EGifPutCodeSafe(GifFileType *GifFile, int CodeSize,
+                    const GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlock,
+                    size_t CodeBlockLen) {
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_WRITEABLE(Private)) {
@@ -724,7 +725,18 @@ int EGifPutCode(GifFileType *GifFile, int CodeSize,
 	 * }
 	 */
 
-	return EGifPutCodeNext(GifFile, CodeBlock);
+	return EGifPutCodeNextSafe(GifFile, CodeBlock, CodeBlockLen);
+}
+
+int EGifPutCode(GifFileType *GifFile, int CodeSize,
+                const GifByteType *__unsafe_indexable CodeBlock) {
+	if (CodeBlock == NULL) {
+		return EGifPutCodeSafe(GifFile, CodeSize, NULL, 0);
+	}
+	size_t Len = (size_t)CodeBlock[0] + 1;
+	const GifByteType *Safe = __unsafe_forge_bidi_indexable(
+	    const GifByteType *, CodeBlock, Len);
+	return EGifPutCodeSafe(GifFile, CodeSize, Safe, Len);
 }
 
 /******************************************************************************
@@ -732,17 +744,15 @@ int EGifPutCode(GifFileType *GifFile, int CodeSize,
  called with blocks of code as read via DGifGetCode/DGifGetCodeNext. If
  given buffer pointer is NULL, empty block is written to mark end of code.
 ******************************************************************************/
-// FIXME: Add a safe wrapper
-int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable _CodeBlock) {
+int EGifPutCodeNextSafe(GifFileType *GifFile,
+                        const GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlock,
+                        size_t CodeBlockLen) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
-	if (_CodeBlock != NULL) {
-		const GifByteType * CodeBlock = __unsafe_forge_bidi_indexable(const
-			GifByteType*, _CodeBlock, _CodeBlock[0]+1);
-
-		if (InternalWrite(GifFile, CodeBlock, CodeBlock[0] + 1) !=
-		    (unsigned)(CodeBlock[0] + 1)) {
+	if (CodeBlock != NULL) {
+		if (InternalWrite(GifFile, CodeBlock, CodeBlockLen) !=
+		    CodeBlockLen) {
 			GifFile->Error = E_GIF_ERR_WRITE_FAILED;
 			return GIF_ERROR;
 		}
@@ -757,6 +767,16 @@ int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable 
 	}
 
 	return GIF_OK;
+}
+
+int EGifPutCodeNext(GifFileType *GifFile, const GifByteType *__unsafe_indexable _CodeBlock) {
+	if (_CodeBlock == NULL) {
+		return EGifPutCodeNextSafe(GifFile, NULL, 0);
+	}
+	size_t Len = (size_t)_CodeBlock[0] + 1;
+	const GifByteType *Safe = __unsafe_forge_bidi_indexable(
+	    const GifByteType *, _CodeBlock, Len);
+	return EGifPutCodeNextSafe(GifFile, Safe, Len);
 }
 
 /******************************************************************************

@@ -48,8 +48,6 @@ static int DGifDecompressInput(GifFileType *GifFile, int *Code);
 static int DGifBufferedInput(GifFileType *GifFile, GifByteType *__bidi_indexable Buf,
                              GifByteType *NextByte);
 
-static int DGifGetCodeNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable *CodeBlock);
-
 /******************************************************************************
  Open a new GIF file for read, given by its name.
  Returns dynamically allocated GifFileType pointer which serves as the GIF
@@ -487,7 +485,8 @@ int DGifGetImageDesc(GifFileType *GifFile) {
  Get one full scanned line (Line) of length LineLen from GIF file.
 ******************************************************************************/
 int DGifGetLine(GifFileType *GifFile, GifPixelType *__counted_by(LineLen) Line, int LineLen) {
-	GifByteType *Dummy;
+	size_t DummyLen = 0;
+	GifByteType *__counted_by_or_null(DummyLen) Dummy;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_READABLE(Private)) {
@@ -515,7 +514,7 @@ int DGifGetLine(GifFileType *GifFile, GifPixelType *__counted_by(LineLen) Line, 
 			 * detected. We use GetCodeNext.
 			 */
 			do {
-				if (DGifGetCodeNextSafe(GifFile, &Dummy) ==
+				if (DGifGetCodeNextSafe(GifFile, &Dummy, &DummyLen) ==
 				    GIF_ERROR) {
 					return GIF_ERROR;
 				}
@@ -531,7 +530,8 @@ int DGifGetLine(GifFileType *GifFile, GifPixelType *__counted_by(LineLen) Line, 
  Put one pixel (Pixel) into GIF file.
 ******************************************************************************/
 int DGifGetPixel(GifFileType *GifFile, GifPixelType Pixel) {
-	GifByteType *Dummy;
+	size_t DummyLen = 0;
+	GifByteType *__counted_by_or_null(DummyLen) Dummy;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_READABLE(Private)) {
@@ -552,7 +552,7 @@ int DGifGetPixel(GifFileType *GifFile, GifPixelType Pixel) {
 			 * detected. We use GetCodeNext.
 			 */
 			do {
-				if (DGifGetCodeNextSafe(GifFile, &Dummy) ==
+				if (DGifGetCodeNextSafe(GifFile, &Dummy, &DummyLen) ==
 				    GIF_ERROR) {
 					return GIF_ERROR;
 				}
@@ -572,10 +572,9 @@ int DGifGetPixel(GifFileType *GifFile, GifPixelType Pixel) {
  Note it is assumed the Extension description header has been read.
 ******************************************************************************/
 
-static int DGifGetExtensionNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable *Extension);
-
-static int DGifGetExtensionSafe(GifFileType *GifFile, int *ExtCode,
-				GifByteType *__bidi_indexable *Extension) {
+int DGifGetExtensionSafe(GifFileType *GifFile, int *ExtCode,
+			 GifByteType *__counted_by_or_null(*ExtensionLen) *Extension,
+			 size_t *ExtensionLen) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
@@ -595,13 +594,14 @@ static int DGifGetExtensionSafe(GifFileType *GifFile, int *ExtCode,
 	// fprintf(stderr, "### <- DGifGetExtension: %02x, about to call
 	// next\n", Buf);
 
-	return DGifGetExtensionNextSafe(GifFile, Extension);
+	return DGifGetExtensionNextSafe(GifFile, Extension, ExtensionLen);
 }
 
 int DGifGetExtension(GifFileType *GifFile, int *ExtCode,
                      GifByteType *__unsafe_indexable *Extension) {
-	GifByteType *ExtensionSafe = NULL;
-	int Ret = DGifGetExtensionSafe(GifFile, ExtCode, &ExtensionSafe);
+	size_t ExtensionLen = 0;
+	GifByteType *__counted_by_or_null(ExtensionLen) ExtensionSafe = NULL;
+	int Ret = DGifGetExtensionSafe(GifFile, ExtCode, &ExtensionSafe, &ExtensionLen);
 	*Extension = ExtensionSafe;
 	return Ret;
 }
@@ -611,7 +611,9 @@ int DGifGetExtension(GifFileType *GifFile, int *ExtCode,
  routine should be called until NULL Extension is returned.
  The Extension should NOT be freed by the user (not dynamically allocated).
 ******************************************************************************/
-int DGifGetExtensionNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable *Extension) {
+int DGifGetExtensionNextSafe(GifFileType *GifFile,
+			     GifByteType *__counted_by_or_null(*ExtensionLen) *Extension,
+			     size_t *ExtensionLen) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
@@ -624,6 +626,7 @@ int DGifGetExtensionNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable
 
 	if (Buf > 0) {
 		*Extension = Private->Buf; /* Use private unused buffer. */
+		*ExtensionLen = (size_t)Buf + 1;
 		(*Extension)[0] =
 		    Buf; /* Pascal strings notation (pos. 0 is len.). */
 		         /* coverity[tainted_data,check_return] */
@@ -633,6 +636,7 @@ int DGifGetExtensionNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable
 		}
 	} else {
 		*Extension = NULL;
+		*ExtensionLen = 0;
 	}
 	// fprintf(stderr, "### <- DGifGetExtensionNext: %p\n", Extension);
 
@@ -640,8 +644,9 @@ int DGifGetExtensionNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable
 }
 
 int DGifGetExtensionNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *Extension) {
-	GifByteType *ExtensionSafe = NULL;
-	int Ret = DGifGetExtensionNextSafe(GifFile, &ExtensionSafe);
+	size_t ExtensionLen = 0;
+	GifByteType *__counted_by_or_null(ExtensionLen) ExtensionSafe = NULL;
+	int Ret = DGifGetExtensionNextSafe(GifFile, &ExtensionSafe, &ExtensionLen);
 	*Extension = ExtensionSafe;
 	return Ret;
 }
@@ -781,7 +786,9 @@ static int DGifGetWord(GifFileType *GifFile, GifWord *Word) {
  to DGifGetCodeNext, until NULL block is returned.
  The block should NOT be freed by the user (not dynamically allocated).
 ******************************************************************************/
-int DGifGetCode(GifFileType *GifFile, int *CodeSize, GifByteType *__unsafe_indexable *CodeBlock) {
+int DGifGetCodeSafe(GifFileType *GifFile, int *CodeSize,
+		    GifByteType *__counted_by_or_null(*CodeBlockLen) *CodeBlock,
+		    size_t *CodeBlockLen) {
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_READABLE(Private)) {
@@ -792,7 +799,15 @@ int DGifGetCode(GifFileType *GifFile, int *CodeSize, GifByteType *__unsafe_index
 
 	*CodeSize = Private->BitsPerPixel;
 
-	return DGifGetCodeNext(GifFile, CodeBlock);
+	return DGifGetCodeNextSafe(GifFile, CodeBlock, CodeBlockLen);
+}
+
+int DGifGetCode(GifFileType *GifFile, int *CodeSize, GifByteType *__unsafe_indexable *CodeBlock) {
+	size_t CodeBlockLen = 0;
+	GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlockSafe = NULL;
+	int Ret = DGifGetCodeSafe(GifFile, CodeSize, &CodeBlockSafe, &CodeBlockLen);
+	*CodeBlock = CodeBlockSafe;
+	return Ret;
 }
 
 /******************************************************************************
@@ -800,7 +815,9 @@ int DGifGetCode(GifFileType *GifFile, int *CodeSize, GifByteType *__unsafe_index
  called until NULL block is returned.
  The block should NOT be freed by the user (not dynamically allocated).
 ******************************************************************************/
-static int DGifGetCodeNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexable *CodeBlock) {
+int DGifGetCodeNextSafe(GifFileType *GifFile,
+			GifByteType *__counted_by_or_null(*CodeBlockLen) *CodeBlock,
+			size_t *CodeBlockLen) {
 	GifByteType Buf;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
@@ -814,6 +831,7 @@ static int DGifGetCodeNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexab
 	/* coverity[lower_bounds] */
 	if (Buf > 0) {
 		*CodeBlock = Private->Buf; /* Use private unused buffer. */
+		*CodeBlockLen = (size_t)Buf + 1;
 		(*CodeBlock)[0] =
 		    Buf; /* Pascal strings notation (pos. 0 is len.). */
 		         /* coverity[tainted_data] */
@@ -823,6 +841,7 @@ static int DGifGetCodeNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexab
 		}
 	} else {
 		*CodeBlock = NULL;
+		*CodeBlockLen = 0;
 		Private->Buf[0] = 0; /* Make sure the buffer is empty! */
 		Private->PixelCount =
 		    0; /* And local info. indicate image read. */
@@ -832,8 +851,9 @@ static int DGifGetCodeNextSafe(GifFileType *GifFile, GifByteType *__bidi_indexab
 }
 
 int DGifGetCodeNext(GifFileType *GifFile, GifByteType *__unsafe_indexable *CodeBlock) {
-       GifByteType *CodeBlockSafe = 0;
-       int Err = DGifGetCodeNextSafe(GifFile, &CodeBlockSafe);
+       size_t CodeBlockLen = 0;
+       GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlockSafe = NULL;
+       int Err = DGifGetCodeNextSafe(GifFile, &CodeBlockSafe, &CodeBlockLen);
        *CodeBlock = CodeBlockSafe;
        return Err;
 }
@@ -1057,7 +1077,8 @@ static int DGifGetPrefixChar(const GifPrefixType *__counted_by(LZ_MAX_CODE + 1) 
  (12bits), or to -1 if EOF code is returned.
 ******************************************************************************/
 int DGifGetLZCodes(GifFileType *GifFile, int *Code) {
-	GifByteType *CodeBlock;
+	size_t CodeBlockLen = 0;
+	GifByteType *__counted_by_or_null(CodeBlockLen) CodeBlock;
 	GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
 	if (!IS_READABLE(Private)) {
@@ -1074,7 +1095,7 @@ int DGifGetLZCodes(GifFileType *GifFile, int *Code) {
 		/* Skip rest of codes (hopefully only NULL terminating block):
 		 */
 		do {
-			if (DGifGetCodeNextSafe(GifFile, &CodeBlock) == GIF_ERROR) {
+			if (DGifGetCodeNextSafe(GifFile, &CodeBlock, &CodeBlockLen) == GIF_ERROR) {
 				return GIF_ERROR;
 			}
 		} while (CodeBlock != NULL);
@@ -1207,7 +1228,8 @@ int DGifSlurp(GifFileType *GifFile) {
 	size_t ImageSize;
 	GifRecordType RecordType;
 	SavedImage *sp;
-	GifByteType *ExtData;
+	size_t ExtDataLen = 0;
+	GifByteType *__counted_by_or_null(ExtDataLen) ExtData;
 	int ExtFunction;
 
 	GifFile->ExtensionBlocks = NULL;
@@ -1298,7 +1320,7 @@ int DGifSlurp(GifFileType *GifFile) {
 			break;
 
 		case EXTENSION_RECORD_TYPE:
-			if (DGifGetExtensionSafe(GifFile, &ExtFunction, &ExtData) ==
+			if (DGifGetExtensionSafe(GifFile, &ExtFunction, &ExtData, &ExtDataLen) ==
 			    GIF_ERROR) {
 				return (GIF_ERROR);
 			}
@@ -1312,7 +1334,7 @@ int DGifSlurp(GifFileType *GifFile) {
 				}
 			}
 			for (;;) {
-				if (DGifGetExtensionNextSafe(GifFile, &ExtData) ==
+				if (DGifGetExtensionNextSafe(GifFile, &ExtData, &ExtDataLen) ==
 				    GIF_ERROR) {
 					return (GIF_ERROR);
 				}
